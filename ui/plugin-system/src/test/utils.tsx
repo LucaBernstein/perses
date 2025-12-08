@@ -12,12 +12,35 @@
 // limitations under the License.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactNode } from 'react';
+import { ReactNode, ReactElement } from 'react';
 import { DEFAULT_DASHBOARD_DURATION } from '@perses-dev/core';
+import { QueryParamProvider, QueryParamAdapter } from 'use-query-params';
 import { PluginRegistry } from '../components';
 import { DefaultPluginKinds } from '../model';
 import { TimeRangeProviderBasic } from '../runtime';
 import { testPluginLoader } from './test-plugins';
+
+// Simple test adapter component for use-query-params that uses window.history.
+function TestAdapter({
+  children,
+}: {
+  children: (adapter: QueryParamAdapter) => ReactElement | null;
+}): ReactElement | null {
+  const adapter: QueryParamAdapter = {
+    replace: (location) => {
+      window.history.replaceState(null, '', location.search);
+    },
+    push: (location) => {
+      window.history.pushState(null, '', location.search);
+    },
+    get location() {
+      return {
+        search: window.location.search,
+      };
+    },
+  };
+  return children(adapter);
+}
 
 export type ContextOptions = {
   defaultPluginKinds?: DefaultPluginKinds;
@@ -33,18 +56,20 @@ export function getTestContextWrapper(contextOptions?: ContextOptions) {
   return function Wrapper({ children }: { children: ReactNode }): ReactNode {
     return (
       <QueryClientProvider client={queryClient}>
-        <TimeRangeProviderBasic initialTimeRange={timeRange}>
-          <PluginRegistry
-            pluginLoader={testPluginLoader}
-            defaultPluginKinds={
-              contextOptions?.defaultPluginKinds ?? {
-                TimeSeriesQuery: 'PrometheusTimeSeriesQuery',
+        <QueryParamProvider adapter={TestAdapter}>
+          <TimeRangeProviderBasic initialTimeRange={timeRange}>
+            <PluginRegistry
+              pluginLoader={testPluginLoader}
+              defaultPluginKinds={
+                contextOptions?.defaultPluginKinds ?? {
+                  TimeSeriesQuery: 'PrometheusTimeSeriesQuery',
+                }
               }
-            }
-          >
-            {children}
-          </PluginRegistry>
-        </TimeRangeProviderBasic>
+            >
+              {children}
+            </PluginRegistry>
+          </TimeRangeProviderBasic>
+        </QueryParamProvider>
       </QueryClientProvider>
     );
   };

@@ -14,11 +14,12 @@
 import { Box, Button } from '@mui/material';
 import Reload from 'mdi-material-ui/Reload';
 import { ErrorAlert, ErrorBoundary } from '@perses-dev/components';
-import { ReactElement, useCallback } from 'react';
+import { ReactElement, useCallback, useEffect, useRef } from 'react';
 import { UnknownSpec } from '@perses-dev/core';
 import { PluginKindSelect } from '../PluginKindSelect';
 import { PluginSpecEditor } from '../PluginSpecEditor';
-import { PluginEditorProps, usePluginEditor } from './plugin-editor-api';
+import { PluginEditorProps, PluginEditorSelection, usePluginEditor } from './plugin-editor-api';
+import { useUpdateQueryParamsOnRun, useQueryFromUrl } from './useUpdateQueryParamsOnRun';
 
 /**
  * A combination `PluginKindSelect` and `PluginSpecEditor` component. This is meant for editing the `plugin` property
@@ -35,7 +36,7 @@ export function PluginEditor(props: PluginEditorProps): ReactElement {
     withRunQueryButton = true,
     pluginTypes,
     pluginKindLabel,
-    onChange: _,
+    onChange,
     isReadonly,
     onRunQuery,
     filteredQueryPlugins,
@@ -44,12 +45,43 @@ export function PluginEditor(props: PluginEditorProps): ReactElement {
 
   const { pendingSelection, isLoading, error, onSelectionChange, onSpecChange } = usePluginEditor(props);
 
+  const updateQueryParams = useUpdateQueryParamsOnRun();
+  const queryFromUrl = useQueryFromUrl();
+  const hasLoadedFromUrl = useRef(false);
+
+  // On mount, if there's a query in the URL and we haven't loaded it yet, load it:
+  useEffect(() => {
+    if (queryFromUrl && !hasLoadedFromUrl.current) {
+      hasLoadedFromUrl.current = true;
+
+      onChange({
+        selection: {
+          kind: queryFromUrl.kind,
+          type: queryFromUrl.type as PluginEditorSelection['type'],
+        },
+        spec: queryFromUrl.spec as UnknownSpec,
+      });
+    }
+  }, [queryFromUrl, onChange]);
+
   const handleSpecChange = useCallback(
     (nextSpec: UnknownSpec) => {
       onSpecChange(nextSpec);
     },
     [onSpecChange]
   );
+
+  const handleRunQuery = useCallback(() => {
+    updateQueryParams({
+      kind: value.selection.kind,
+      type: value.selection.type,
+      spec: value.spec,
+    });
+
+    if (onRunQuery) {
+      onRunQuery();
+    }
+  }, [value, updateQueryParams, onRunQuery]);
 
   return (
     <Box {...others}>
@@ -83,7 +115,7 @@ export function PluginEditor(props: PluginEditorProps): ReactElement {
             data-testid="run_query_button"
             variant="contained"
             startIcon={<Reload />}
-            onClick={onRunQuery}
+            onClick={handleRunQuery}
             disabled={isLoading}
           >
             Run Query
