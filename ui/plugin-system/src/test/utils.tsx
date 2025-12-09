@@ -28,10 +28,12 @@ function TestAdapter({
 }): ReactElement | null {
   const adapter: QueryParamAdapter = {
     replace: (location) => {
-      window.history.replaceState(null, '', location.search);
+      const search = typeof location.search === 'string' ? location.search : '';
+      window.history.replaceState(null, '', search);
     },
     push: (location) => {
-      window.history.pushState(null, '', location.search);
+      const search = typeof location.search === 'string' ? location.search : '';
+      window.history.pushState(null, '', search);
     },
     get location() {
       return {

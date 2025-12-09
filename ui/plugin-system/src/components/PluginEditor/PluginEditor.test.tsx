@@ -26,9 +26,10 @@ type RenderComponentOptions = {
 };
 
 describe('PluginEditor', () => {
-  const renderComponent: ({ pluginTypes, defaultPluginKinds, value }?: RenderComponentOptions) => {
+  const renderComponent: (options?: RenderComponentOptions) => {
     onChange: jest.Mocked<PluginEditorProps['onChange']>;
-  } = ({ pluginTypes = ['Variable'], defaultPluginKinds, value }: RenderComponentOptions = {}) => {
+  } = (options) => {
+    const { pluginTypes = ['Variable'], defaultPluginKinds, value } = options ?? {};
     const testValue: PluginEditorProps['value'] = value || {
       selection: {
         type: 'Variable',
@@ -163,6 +164,66 @@ describe('PluginEditor', () => {
           expect(queryButton).toBeInTheDocument();
           userEvent.click(queryButton);
           expect(onRunQueryHandler).toHaveBeenCalledTimes(1);
+        });
+      });
+    });
+  });
+
+  describe('URL query parameter handling', () => {
+    const queryInfo = {
+      kind: 'PrometheusTimeSeriesQuery',
+      type: 'TimeSeriesQuery',
+      spec: { query: 'up' },
+    };
+
+    it('should update URL query params when Run Query is clicked', () => {
+      const onRunQueryHandler = jest.fn();
+      renderWithContext(
+        <PluginEditor
+          pluginTypes={['TimeSeriesQuery']}
+          pluginKindLabel="Query Type"
+          withRunQueryButton
+          value={{
+            selection: { type: queryInfo.type as PluginType, kind: queryInfo.kind },
+            spec: queryInfo.spec,
+          }}
+          onChange={jest.fn}
+          onRunQuery={onRunQueryHandler}
+        />
+      );
+
+      const queryButton = screen.getByTestId('run_query_button');
+      userEvent.click(queryButton);
+
+      expect(onRunQueryHandler).toHaveBeenCalledTimes(1);
+
+      const searchParams = new URLSearchParams(window.location.search);
+      const queryParam = searchParams.get('query');
+      expect(queryParam).not.toBeNull();
+      expect(JSON.parse(queryParam as string)).toEqual(queryInfo);
+    });
+
+    it('should load query from URL params on mount', async () => {
+      const queryString = `?query=${encodeURIComponent(JSON.stringify(queryInfo))}`;
+      window.history.replaceState({}, '', queryString);
+
+      const onChange = jest.fn();
+      renderWithContext(
+        <PluginEditor
+          pluginTypes={['TimeSeriesQuery']}
+          pluginKindLabel="Query Type"
+          value={{ selection: { type: 'TimeSeriesQuery', kind: '' }, spec: {} }}
+          onChange={onChange}
+        />
+      );
+
+      await waitFor(() => {
+        expect(onChange).toHaveBeenCalledWith({
+          selection: {
+            kind: queryInfo.kind,
+            type: queryInfo.type,
+          },
+          spec: queryInfo.spec,
         });
       });
     });
